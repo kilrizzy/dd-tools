@@ -1,5 +1,24 @@
 <?php
-
+include('helpers/menuHelper.php');
+include('helpers/alertHelper.php');
+include('helpers/dataHelper.php');
+//Pass $user to all views
+global $sentry_user, $user, $isAdmin;
+$user = false;
+$isAdmin = false;
+if (Sentry::check()){
+    $sentry_user = Sentry::getUser();
+    $user = User::find($sentry_user->id);
+    //check admin
+    $adminGroup = Sentry::findGroupByName('admin');
+    if($sentry_user->inGroup($adminGroup)){
+    	$isAdmin = true;
+    }
+}
+View::share('sentry_user', $sentry_user);
+View::share('user', $user);
+View::share('isAdmin', $isAdmin);
+View::share('data_list', $data_list);
 /*
 |--------------------------------------------------------------------------
 | Application & Route Filters
@@ -32,23 +51,32 @@ App::after(function($request, $response)
 | integrates HTTP Basic authentication for quick, simple checking.
 |
 */
-
-Route::filter('auth', function()
+Route::filter('auth.sentry', function()
 {
-	if (Auth::guest())
-	{
-		if (Request::ajax())
-		{
-			return Response::make('Unauthorized', 401);
-		}
-		else
-		{
-			return Redirect::guest('login');
-		}
+	if ( ! Sentry::check()){
+		alert('Please login to continue','danger');
+		return Redirect::to('login');
 	}
 });
-
-
+Route::filter('admin.sentry', function()
+{
+	if ( ! Sentry::check()){
+		alert('Please login to continue','danger');
+		return Redirect::to('login');
+	}else{
+		//check if admin
+		$sentry_user = Sentry::getUser();
+		$admin = Sentry::findGroupByName('Admin');
+		if (!$sentry_user->inGroup($admin)){
+			alert('Invalid Access','danger');
+	        return Redirect::to('/');
+	    }
+	}
+});
+Route::filter('auth', function()
+{
+	if (Auth::guest()) return Redirect::guest('login');
+});
 Route::filter('auth.basic', function()
 {
 	return Auth::basic();
@@ -64,11 +92,17 @@ Route::filter('auth.basic', function()
 | response will be issued if they are, which you may freely change.
 |
 */
-
+Route::filter('guest.sentry', function()
+{
+	if ( Sentry::check()){
+		return Redirect::to('/');
+	}
+});
 Route::filter('guest', function()
 {
 	if (Auth::check()) return Redirect::to('/');
 });
+
 
 /*
 |--------------------------------------------------------------------------
